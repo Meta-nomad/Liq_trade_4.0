@@ -76,7 +76,7 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.0-20260914 accounts=%s execution=PAPER_ONLY",
+        LOGGER.info("RELEASE v0.4.1-20260914 accounts=%s execution=PAPER_ONLY",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
