@@ -36,3 +36,34 @@ async def screen(symbols):
         if not reason:out.append(s)
     if not out:raise RuntimeError('No eligible contracts; refusing to trade')
     return tuple(out)
+
+
+class UniverseGate:
+    """Background eligibility; a transport denial never enables trading."""
+    def __init__(self):
+        self.error = "pending_verification"
+        self.checked_at = 0.0
+        self.eligible_count = 0
+
+    async def refresh(self, symbols, market, checker=screen):
+        try:
+            eligible = set(await checker(symbols))
+            # Every result is still constrained to configured candidates.
+            eligible.intersection_update(symbols)
+            if not eligible:
+                raise RuntimeError("No eligible contracts")
+        except Exception as exc:
+            self.error = str(exc)
+            self.eligible_count = 0
+            self.checked_at = time.time()
+            for symbol in symbols:
+                market.symbol(symbol).universe_valid_until = 0
+            LOG.error("UNIVERSE BLOCKED trading=OFF error=%s retry_in=900s", self.error)
+            return 900
+        self.error = ""
+        self.checked_at = time.time()
+        self.eligible_count = len(eligible)
+        for symbol in symbols:
+            market.symbol(symbol).universe_valid_until = self.checked_at+7200 if symbol in eligible else 0
+        LOG.info("UNIVERSE VERIFIED eligible=%d/%d",len(eligible),len(symbols))
+        return 3600

@@ -5,7 +5,7 @@ import logging
 import time
 from contextlib import suppress
 from dataclasses import replace
-from .universe import screen
+from .universe import UniverseGate
 from typing import Any
 
 from .config import Settings, account_configs
@@ -26,6 +26,7 @@ LOGGER = logging.getLogger(__name__)
 
 class PaperTradingService:
     def __init__(self, settings: Settings) -> None:
+        self.universe_gate = UniverseGate()
         self.settings = settings
         self.market = MarketState(settings.symbols)
         self.storage = Storage(settings.db_path)
@@ -46,16 +47,6 @@ class PaperTradingService:
         self.close_count = 0
 
     async def start(self) -> None:
-        if self.settings.data_mode == "live":
-            eligible = await screen(self.settings.symbols)
-            self.settings = replace(self.settings, symbols=eligible)
-            self.market = MarketState(eligible)
-            for state in self.market.symbols.values():
-                state.universe_valid_until = time.time()+7200
-            self.broker = PaperBroker(self.market, self.settings, account_configs(self.settings))
-            self.router = StrategyRouter(self.settings)
-        if self.settings.data_mode == "live":
-            self.tasks.append(asyncio.create_task(self._refresh_universe(), name="universe-refresh"))
         await self.storage.initialise()
         restored = await self.storage.load_account_states()
         self.broker.restore(restored)
@@ -66,6 +57,7 @@ class PaperTradingService:
             self.feeds = [feed]
             self.tasks.append(asyncio.create_task(feed.run(), name="synthetic-feed"))
         else:
+            self.tasks.append(asyncio.create_task(self._refresh_universe(), name="universe-refresh"))
             self.tasks.append(asyncio.create_task(self._start_live_feeds(), name="live-feeds-bootstrap"))
         self.tasks.append(asyncio.create_task(self._engine_loop(), name="paper-engine"))
         self.tasks.append(asyncio.create_task(self._status_log_loop(), name="status-log"))
@@ -76,20 +68,13 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.1-20260914 accounts=%s execution=PAPER_ONLY",
+        LOGGER.info("RELEASE v0.4.2-20260914 accounts=%s execution=PAPER_ONLY",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
         while not self._stopping:
-            await asyncio.sleep(3600)
-            try:
-                eligible = await screen(self.settings.symbols)
-                for symbol in self.settings.symbols:
-                    self.market.symbol(symbol).universe_valid_until = time.time()+7200 if symbol in eligible else 0
-            except Exception:
-                for symbol in self.settings.symbols:
-                    self.market.symbol(symbol).universe_valid_until = 0
-                LOGGER.exception("UNIVERSE refresh failed; new entries blocked")
+            delay = await self.universe_gate.refresh(self.settings.symbols, self.market)
+            await asyncio.sleep(delay)
 
     async def _start_live_feeds(self) -> None:
         mexc = MexcFeed(self.market, self.settings)
@@ -161,6 +146,8 @@ class PaperTradingService:
             blocker_text = ",".join(
                 f"{name}:{count}" for name, count in sorted(blocker_counts.items())
             ) or "none"
+            if self.settings.data_mode == "live" and self.universe_gate.error:
+                LOGGER.warning("TRADING BLOCKED universe_error=%s", self.universe_gate.error)
             accounts = self.broker.status()
             position_count = sum(int(item["positions_count"]) for item in accounts.values())
             composite = accounts.get("COMPOSITE_FLOW", next(iter(accounts.values()), {}))
@@ -287,6 +274,9 @@ class PaperTradingService:
             "last_engine_tick": self.last_engine_tick,
             "engine_lag_seconds": now - self.last_engine_tick if self.last_engine_tick else None,
             "last_engine_error": self.last_engine_error,
+            "universe_error": self.universe_gate.error if self.settings.data_mode == "live" else "",
+            "universe_eligible_count": self.universe_gate.eligible_count,
+            "universe_checked_at": self.universe_gate.checked_at,
             "accounts": self.broker.status(),
             "market": self.market.status(),
             "diagnostics": await self.diagnostics(),
