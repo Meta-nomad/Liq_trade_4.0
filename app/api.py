@@ -35,7 +35,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Order Flow Paper Lab",
-    version="0.3.0",
+    version="0.4.4",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url=None,

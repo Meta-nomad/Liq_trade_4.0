@@ -44,6 +44,35 @@ class UniverseGate:
         self.error = "pending_verification"
         self.checked_at = 0.0
         self.eligible_count = 0
+        self.eligible_symbols: set[str] = set()
+
+    @staticmethod
+    def _mexc_fallback(symbols, market):
+        """Fail-closed local screen used when Bybit REST is unavailable.
+
+        It deliberately requires MEXC contract metadata, 200 hourly closes,
+        an allowed API flag and a fresh, tight MEXC book.  It is weaker than
+        the Bybit 24h turnover/age screen, so it is only a transport fallback.
+        """
+        now = time.time()
+        eligible = set()
+        for symbol in symbols:
+            state = market.symbol(symbol)
+            if not state.contract_metadata_ready or not state.api_allowed:
+                continue
+            if state.contract_max_leverage <= 0 or len(state.hour_closes) < 200:
+                continue
+            bbo = state.book("mexc").best_bid_ask()
+            if not bbo:
+                continue
+            bid, ask = bbo
+            mid = (bid + ask) / 2.0
+            if mid <= 0 or ask <= bid or (ask - bid) / mid * 10000 > 10:
+                continue
+            if not state.book("mexc").is_fresh(now, 30.0):
+                continue
+            eligible.add(symbol)
+        return eligible
 
     async def refresh(self, symbols, market, checker=screen):
         try:
@@ -53,8 +82,19 @@ class UniverseGate:
             if not eligible:
                 raise RuntimeError("No eligible contracts")
         except Exception as exc:
+            fallback = self._mexc_fallback(symbols, market)
+            if fallback:
+                self.error = ""
+                self.checked_at = time.time()
+                self.eligible_symbols = fallback
+                self.eligible_count = len(fallback)
+                for symbol in symbols:
+                    market.symbol(symbol).universe_valid_until = self.checked_at + 1800 if symbol in fallback else 0
+                LOG.warning("UNIVERSE FALLBACK venue=MEXC eligible=%d/%d reason=%s", len(fallback), len(symbols), exc)
+                return 900
             self.error = str(exc)
             self.eligible_count = 0
+            self.eligible_symbols = set()
             self.checked_at = time.time()
             for symbol in symbols:
                 market.symbol(symbol).universe_valid_until = 0
@@ -62,6 +102,7 @@ class UniverseGate:
             return 900
         self.error = ""
         self.checked_at = time.time()
+        self.eligible_symbols = eligible
         self.eligible_count = len(eligible)
         for symbol in symbols:
             market.symbol(symbol).universe_valid_until = self.checked_at+7200 if symbol in eligible else 0

@@ -69,7 +69,7 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.3-20260915 accounts=%s execution=PAPER_ONLY",
+        LOGGER.info("RELEASE v0.4.4-20260915 accounts=%s execution=PAPER_ONLY",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
@@ -102,6 +102,10 @@ class PaperTradingService:
                 history_ready,
                 len(self.settings.symbols),
             )
+            # Re-run eligibility after metadata/history arrive. This enables
+            # the guarded MEXC fallback immediately when Bybit REST is denied.
+            if self.universe_gate.error:
+                await self.universe_gate.refresh(self.settings.symbols, self.market)
         except Exception as exc:
             LOGGER.exception("MEXC bootstrap failed: %s", exc)
             await self.storage.event(time.time(), "ERROR", "MEXC_BOOTSTRAP", str(exc))
@@ -210,7 +214,14 @@ class PaperTradingService:
                         trade.r_multiple,
                     )
 
-                signals = self.router.evaluate_all(self.market.symbols, features, tick_started)
+                active = self.universe_gate.eligible_symbols or None
+                signal_states = self.market.symbols if active is None else {
+                    symbol: self.market.symbol(symbol) for symbol in active
+                }
+                signal_features = features if active is None else {
+                    symbol: features[symbol] for symbol in active if symbol in features
+                }
+                signals = self.router.evaluate_all(signal_states, signal_features, tick_started)
                 for signal in signals:
                     if not self._deduplicated(signal, tick_started):
                         continue
