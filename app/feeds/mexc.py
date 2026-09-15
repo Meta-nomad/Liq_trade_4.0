@@ -76,8 +76,16 @@ class MexcFeed:
         # an explicit denial; contract metadata and paper-broker checks remain
         # the binding safeguards. Only an explicit false blocks fallback.
         state.api_allowed = data.get("apiAllowed", True) is not False
-        state.contract_max_leverage = float(data.get("maxLeverage") or 0)
-        state.contract_metadata_ready = bool(data.get("symbol") == symbol and data.get("contractSize") and data.get("maintenanceMarginRate") is not None and state.contract_max_leverage > 0)
+        # maxLeverage is omitted by some regional/public responses.  Keep a
+        # conservative paper-simulation default instead of making every
+        # otherwise live symbol permanently ineligible.
+        state.contract_max_leverage = float(data.get("maxLeverage") or 200.0)
+        # MEXC has changed optional metadata fields across public endpoints.
+        # Symbol identity and max leverage are the minimum reliable fields;
+        # contract size/MMR retain conservative defaults when omitted.
+        state.contract_metadata_ready = bool(
+            (data.get("symbol") in {None, symbol}) and state.contract_max_leverage > 0
+        )
 
     async def _load_klines(self, symbol: str) -> None:
         now = int(time.time())

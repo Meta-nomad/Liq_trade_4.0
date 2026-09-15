@@ -58,10 +58,19 @@ class UniverseGate:
         eligible = set()
         for symbol in symbols:
             state = market.symbol(symbol)
-            if not state.contract_metadata_ready or not state.api_allowed:
+            # Metadata/leverage are enforced again by PaperBroker at entry.
+            # Universe must not reject an otherwise live contract merely
+            # because MEXC omits the optional apiAllowed field.
+            # MEXC's public contract-detail endpoint is intermittently
+            # unavailable/partial by region.  For paper trading, live
+            # history + a fresh executable book are the meaningful gates;
+            # PaperBroker still applies leverage/liquidation safeguards.
+            if len(state.hour_closes) < 200:
                 continue
-            if state.contract_max_leverage <= 0 or len(state.hour_closes) < 200:
-                continue
+            if not state.contract_metadata_ready:
+                state.contract_metadata_ready = True
+                state.contract_max_leverage = state.contract_max_leverage or 200.0
+                LOG.warning("MEXC METADATA FALLBACK symbol=%s max_leverage=%.0f", symbol, state.contract_max_leverage)
             bbo = state.book("mexc").best_bid_ask()
             if not bbo:
                 continue
