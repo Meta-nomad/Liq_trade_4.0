@@ -111,7 +111,7 @@ table{width:100%;border-collapse:collapse;background:var(--card);border:1px soli
 .feeds{display:flex;gap:8px;flex-wrap:wrap}.feed{padding:7px 10px;border-radius:8px;background:#17202d;border:1px solid var(--line)}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--red)}.dot.on{background:var(--green)}
 @media(max-width:900px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}main{padding:18px}.tablewrap{overflow:auto}}
 </style></head><body><main>
-<div class="top"><div><h1>Liquidation Lab · v0.4.2 · ROI 250%</h1><div class="muted">Реальные рыночные данные · виртуальные деньги · реальные ордера отключены</div></div><div class="badge">PAPER ONLY</div></div>
+<div class="top"><div><h1>Liquidation Lab · v0.4.3 · ROI 250%</h1><div class="muted">Реальные рыночные данные · виртуальные деньги · реальные ордера отключены</div></div><div class="badge">PAPER ONLY</div></div>
 <div id="runtime" class="muted">Подключение к рыночным потокам…</div>
 <div id="accounts" class="grid"></div>
 <section class="section"><h2>Потоки данных</h2><div id="feeds" class="feeds"></div></section>

@@ -17,7 +17,11 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY --chown=paper:paper app ./app
 COPY --chown=paper:paper pyproject.toml README_RU.md ./
 
-USER paper
+# Railway mounts a persistent volume at runtime.  Its ownership is supplied
+# by the platform and can be root:root, so dropping privileges here makes
+# SQLite fail with "unable to open database file" before the app starts.
+# This is a paper-only service with no exchange credentials or order client;
+# keep the process as root so the mounted /data volume is writable.
 
 EXPOSE 8000
 
@@ -25,4 +29,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.getenv('PORT','8000')+'/health', timeout=3)"
 
 CMD ["python", "-m", "app"]
-

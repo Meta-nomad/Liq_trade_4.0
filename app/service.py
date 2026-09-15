@@ -48,6 +48,7 @@ class PaperTradingService:
 
     async def start(self) -> None:
         await self.storage.initialise()
+        LOGGER.info("STORAGE READY path=%s", self.storage.path)
         restored = await self.storage.load_account_states()
         self.broker.restore(restored)
         await self.storage.event(time.time(), "INFO", "SERVICE_START", self.settings.data_mode)
@@ -68,7 +69,7 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.2-20260914 accounts=%s execution=PAPER_ONLY",
+        LOGGER.info("RELEASE v0.4.3-20260915 accounts=%s execution=PAPER_ONLY",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
