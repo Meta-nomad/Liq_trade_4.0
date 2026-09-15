@@ -697,6 +697,31 @@ class CompositeFlowStrategy:
             diagnostic["reversal_blocker"] = "reversal_interval"
             return None
         self._last_reversal_evaluation[state.symbol] = now
+        # MEXC-only mode has no public liquidation feed. Use a deliberately
+        # strict order-flow exhaustion proxy instead of silently producing no
+        # trades: aggressive one-sided flow, tight book, and enough prints.
+        if item.liquidation_events_300s == 0:
+            if item.trade_count_60s < 20 or abs(item.flow_fast) < 0.35 or abs(item.book_imbalance) < 0.12:
+                diagnostic["reversal_blocker"] = "mexc_flow_proxy_not_confirmed"
+                return None
+            side = Side.LONG if item.flow_fast < 0 else Side.SHORT
+            book_alignment = -float(side) * item.book_imbalance
+            if book_alignment < 0.12:
+                diagnostic["reversal_blocker"] = "mexc_book_not_reversing"
+                return None
+            score = _clamp(78.0 + abs(item.flow_fast) * 24.0 + abs(item.book_imbalance) * 12.0, 0.0, 96.0)
+            if score < max(82.0, self.settings.signal_threshold):
+                diagnostic["reversal_blocker"] = "mexc_proxy_score_below_threshold"
+                return None
+            stop_pct = _clamp(max(item.atr_pct * 1.8, 0.006), 0.006, 0.025)
+            return Signal(
+                symbol=state.symbol, strategy="composite", setup="MEXC_FLOW_EXHAUSTION",
+                side=side, score=score, stop_pct=stop_pct, target_r=1.8, ts=now,
+                risk_pct=self._risk_pct(score, regime),
+                reasons=[f"stable market regime {regime.name}", "MEXC-only aggressive-flow exhaustion proxy"],
+                feature_data={**item.as_dict(), "regime": regime.name, "proxy": True},
+                exit_mode="fixed", max_holding_minutes=180,
+            )
         if item.liquidation_events_300s < self.settings.liquidation_min_events:
             diagnostic["reversal_blocker"] = "liquidation_too_few_events"
             return None

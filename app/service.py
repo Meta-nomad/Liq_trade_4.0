@@ -69,16 +69,18 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.4-20260915 accounts=%s execution=PAPER_ONLY",
+        LOGGER.info("RELEASE v0.4.4-20260915 accounts=%s execution=PAPER_ONLY venues=MEXC_EXECUTION,BYBIT_LIQUIDATION,BINANCE_CONFIRMATION",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
         while not self._stopping:
-            delay = await self.universe_gate.refresh(self.settings.symbols, self.market)
+            delay = await self.universe_gate.refresh_mexc_only(self.settings.symbols, self.market)
             await asyncio.sleep(delay)
 
     async def _start_live_feeds(self) -> None:
         mexc = MexcFeed(self.market, self.settings)
+        # MEXC executes paper fills; Bybit WS supplies liquidation events only.
+        # No Bybit REST call is made anywhere in this path.
         bybit = BybitFeed(self.market, self.settings)
         feeds: list[Any] = [mexc, bybit]
         if self.settings.enable_binance:
@@ -86,8 +88,7 @@ class PaperTradingService:
         self.feeds = feeds
 
         # Start public WebSockets immediately. MEXC REST warm-up is useful for
-        # historical bars and contract metadata, but it must never hold Bybit
-        # and Binance market data hostage when REST is slow or unavailable.
+        # historical bars and contract metadata, but never gates Bybit WS.
         runners = [asyncio.create_task(feed.run(), name=f"feed-{feed.name}") for feed in feeds]
         self.tasks.extend(runners)
         LOGGER.info("LIVE FEEDS STARTED venues=%s", ",".join(feed.name for feed in feeds))
@@ -102,10 +103,8 @@ class PaperTradingService:
                 history_ready,
                 len(self.settings.symbols),
             )
-            # Re-run eligibility after metadata/history arrive. This enables
-            # the guarded MEXC fallback immediately when Bybit REST is denied.
-            if self.universe_gate.error:
-                await self.universe_gate.refresh(self.settings.symbols, self.market)
+            # Re-run eligibility after metadata/history arrive.
+            await self.universe_gate.refresh_mexc_only(self.settings.symbols, self.market)
         except Exception as exc:
             LOGGER.exception("MEXC bootstrap failed: %s", exc)
             await self.storage.event(time.time(), "ERROR", "MEXC_BOOTSTRAP", str(exc))

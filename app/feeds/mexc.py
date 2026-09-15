@@ -32,16 +32,24 @@ class MexcFeed:
 
     async def bootstrap(self) -> None:
         self._http = httpx.AsyncClient(timeout=15.0, headers={"Language": "en-US"})
-        semaphore = asyncio.Semaphore(4)
+        # MEXC throttles the public contract/kline endpoints aggressively.
+        # Keep bootstrap deliberately gentle so a larger candidate pool does
+        # not turn into a burst of "Requests are too frequent" responses.
+        semaphore = asyncio.Semaphore(2)
 
         async def load(symbol: str) -> None:
             async with semaphore:
-                try:
-                    await self._load_contract(symbol)
-                    await self._load_klines(symbol)
-                    await self._load_funding(symbol)
-                except Exception as exc:  # feed retries live even if bootstrap is partial
-                    LOGGER.warning("MEXC bootstrap failed for %s: %s", symbol, exc)
+                for attempt in range(3):
+                    try:
+                        await self._load_contract(symbol)
+                        await self._load_klines(symbol)
+                        await self._load_funding(symbol)
+                        return
+                    except Exception as exc:  # feed retries live even if bootstrap is partial
+                        if attempt == 2:
+                            LOGGER.warning("MEXC bootstrap failed for %s: %s", symbol, exc)
+                        else:
+                            await asyncio.sleep(2.0 * (attempt + 1))
 
         await asyncio.gather(*(load(symbol) for symbol in self.settings.symbols))
 
@@ -64,7 +72,10 @@ class MexcFeed:
         state = self.market.symbol(symbol)
         state.contract_size = float(data.get("contractSize") or 1.0)
         state.maintenance_margin_rate = float(data.get("maintenanceMarginRate") or 0.005)
-        state.api_allowed = bool(data.get("apiAllowed", False))
+        # Some public MEXC responses omit apiAllowed entirely. Missing is not
+        # an explicit denial; contract metadata and paper-broker checks remain
+        # the binding safeguards. Only an explicit false blocks fallback.
+        state.api_allowed = data.get("apiAllowed", True) is not False
         state.contract_max_leverage = float(data.get("maxLeverage") or 0)
         state.contract_metadata_ready = bool(data.get("symbol") == symbol and data.get("contractSize") and data.get("maintenanceMarginRate") is not None and state.contract_max_leverage > 0)
 

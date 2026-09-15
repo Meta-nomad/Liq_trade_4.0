@@ -108,3 +108,21 @@ class UniverseGate:
             market.symbol(symbol).universe_valid_until = self.checked_at+7200 if symbol in eligible else 0
         LOG.info("UNIVERSE VERIFIED eligible=%d/%d",len(eligible),len(symbols))
         return 3600
+
+    async def refresh_mexc_only(self, symbols, market):
+        """Single-venue eligibility; no Bybit REST dependency."""
+        eligible = self._mexc_fallback(symbols, market)
+        self.checked_at = time.time()
+        self.eligible_symbols = eligible
+        self.eligible_count = len(eligible)
+        if not eligible:
+            self.error = "No MEXC-ready contracts"
+            for symbol in symbols:
+                market.symbol(symbol).universe_valid_until = 0
+            LOG.warning("UNIVERSE BLOCKED trading=OFF error=%s retry_in=60s", self.error)
+            return 60
+        self.error = ""
+        for symbol in symbols:
+            market.symbol(symbol).universe_valid_until = self.checked_at + 1800 if symbol in eligible else 0
+        LOG.info("UNIVERSE VERIFIED venue=MEXC_ONLY eligible=%d/%d", len(eligible), len(symbols))
+        return 300
