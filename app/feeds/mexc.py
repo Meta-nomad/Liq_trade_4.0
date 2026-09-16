@@ -258,7 +258,10 @@ class MexcFeed:
                         open_close=int(row["O"]) if row.get("O") is not None else None,
                     )
                 )
-        elif channel == "push.depth":
+        # MEXC returns full-depth subscriptions as push.depth.full (some
+        # deployments use the shorter push.depth name). Treat both forms as
+        # order-book snapshots so the execution/universe gates see a BBO.
+        elif channel in {"push.depth", "push.depth.full"}:
             data = payload.get("data") or {}
             version = int(data["version"]) if data.get("version") is not None else None
             state.book("mexc").apply_snapshot(
