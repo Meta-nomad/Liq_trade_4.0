@@ -65,8 +65,6 @@ class UniverseGate:
             # unavailable/partial by region.  For paper trading, live
             # history + a fresh executable book are the meaningful gates;
             # PaperBroker still applies leverage/liquidation safeguards.
-            if len(state.hour_closes) < 200:
-                continue
             if not state.contract_metadata_ready:
                 state.contract_metadata_ready = True
                 state.contract_max_leverage = state.contract_max_leverage or 200.0
