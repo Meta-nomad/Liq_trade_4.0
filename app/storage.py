@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 from .models import ClosedTrade, FeatureSnapshot, Signal
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Storage:
@@ -17,7 +21,23 @@ class Storage:
 
     async def initialise(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        try:
+            self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        except sqlite3.OperationalError as exc:
+            # A Railway volume can briefly be mounted with ownership that does
+            # not allow SQLite to create its file. Keep paper mode alive so
+            # health/log diagnostics remain available instead of crash-looping.
+            fallback = Path("/tmp/paper_v040_fallback.db")
+            LOGGER.error(
+                "STORAGE PRIMARY UNAVAILABLE path=%s error=%s; using fallback=%s",
+                self.path,
+                exc,
+                fallback,
+            )
+            self.path = fallback
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.connection = sqlite3.connect(self.path, check_same_thread=False)
+            LOGGER.warning("STORAGE NONPERSISTENT FALLBACK active path=%s", self.path)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=NORMAL")
@@ -231,4 +251,3 @@ class Storage:
                 self.connection.commit()
                 self.connection.close()
                 self.connection = None
-

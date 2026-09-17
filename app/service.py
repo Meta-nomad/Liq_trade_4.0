@@ -47,6 +47,14 @@ class PaperTradingService:
         self.close_count = 0
 
     async def start(self) -> None:
+        LOGGER.info(
+            "SERVICE BOOT version=%s mode=%s db_path=%s high_leverage_lab=%s symbols=%d",
+            __version__,
+            self.settings.data_mode,
+            self.settings.db_path,
+            self.settings.high_leverage_lab,
+            len(self.settings.symbols),
+        )
         await self.storage.initialise()
         LOGGER.info("STORAGE READY path=%s", self.storage.path)
         restored = await self.storage.load_account_states()
@@ -69,7 +77,7 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.4-20260915 accounts=%s execution=PAPER_ONLY venues=MEXC_EXECUTION,BYBIT_LIQUIDATION,BINANCE_CONFIRMATION",
+        LOGGER.info("RELEASE v0.4.5-20260917 accounts=%s execution=PAPER_ONLY venues=MEXC_EXECUTION,BYBIT_LIQUIDATION,BINANCE_CONFIRMATION liquidation_regime_aligned=true",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:

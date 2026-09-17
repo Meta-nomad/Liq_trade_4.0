@@ -689,9 +689,14 @@ class CompositeFlowStrategy:
         now: float,
     ) -> Signal | None:
         diagnostic = self.last_diagnostics.setdefault(state.symbol, {})
-        if regime.name not in {"RANGE", "STRESS"}:
-            diagnostic["reversal_blocker"] = "reversal_wrong_regime"
-            return None
+        # Liquidation exhaustion is allowed in every regime, but only in the
+        # direction of the higher-timeframe regime.  The old code disabled the
+        # entire module in TREND_UP/TREND_DOWN, which made the high-leverage
+        # paper accounts sit idle for hours during a directional market.
+        regime_side = {
+            "TREND_UP": Side.LONG,
+            "TREND_DOWN": Side.SHORT,
+        }.get(regime.name)
         previous = self._last_reversal_evaluation.get(state.symbol, 0.0)
         if now - previous < self.settings.reversal_interval_seconds:
             diagnostic["reversal_blocker"] = "reversal_interval"
@@ -705,6 +710,9 @@ class CompositeFlowStrategy:
                 diagnostic["reversal_blocker"] = "mexc_flow_proxy_not_confirmed"
                 return None
             side = Side.LONG if item.flow_fast < 0 else Side.SHORT
+            if regime_side is not None and side != regime_side:
+                diagnostic["reversal_blocker"] = "flow_opposes_regime"
+                return None
             book_alignment = -float(side) * item.book_imbalance
             if book_alignment < 0.12:
                 diagnostic["reversal_blocker"] = "mexc_book_not_reversing"
@@ -732,6 +740,9 @@ class CompositeFlowStrategy:
         candidate = self._reversal_scorer._liquidation_reversal(item)
         if candidate is None or abs(item.liquidation_imbalance) < 0.45:
             diagnostic["reversal_blocker"] = "reversal_flow_or_liquidation"
+            return None
+        if regime_side is not None and candidate.side != regime_side:
+            diagnostic["reversal_blocker"] = "liquidation_opposes_regime"
             return None
         score = _clamp(candidate.score + (8.0 if regime.name == "STRESS" else 4.0), 0.0, 100.0)
         if score < max(82.0, self.settings.signal_threshold):
