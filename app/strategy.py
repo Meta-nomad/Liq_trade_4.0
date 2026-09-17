@@ -809,8 +809,20 @@ class CompositeFlowStrategy:
                         state, item, regime, ranks.get(symbol, 0.5), completed, now
                     )
             reversal_signal = self._reversal_candidate(state, item, regime, now)
+            candidates = (reversal_signal,)
+            # In the high-leverage lab, permit only a confirmed short
+            # breakdown during a down-regime. Longs remain liquidation-only.
+            if (
+                self.settings.high_leverage_lab
+                and regime.name == "TREND_DOWN"
+                and trend_signal is not None
+                and trend_signal.side == Side.SHORT
+            ):
+                candidates = (trend_signal, reversal_signal)
+            elif not self.settings.high_leverage_lab:
+                candidates = (trend_signal, reversal_signal)
             candidate = max(
-                (value for value in ((reversal_signal,) if self.settings.high_leverage_lab else (trend_signal, reversal_signal)) if value is not None),
+                (value for value in candidates if value is not None),
                 key=lambda value: value.score,
                 default=None,
             )
