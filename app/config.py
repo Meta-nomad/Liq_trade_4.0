@@ -169,7 +169,9 @@ class Settings:
             high_conviction_threshold=_float("HIGH_CONVICTION_THRESHOLD", 90.0),
             startup_warmup_seconds=_int("STARTUP_WARMUP_SECONDS", 300),
             regime_confirm_seconds=_int("REGIME_CONFIRM_SECONDS", 180),
-            min_ready_ratio=_float("MIN_READY_RATIO", 0.80),
+            # A large multi-symbol pool can contain contracts with delayed
+            # history.  Do not let those permanently block ready symbols.
+            min_ready_ratio=_float("MIN_READY_RATIO", 0.50),
             max_entry_spread_bps=_float("MAX_ENTRY_SPREAD_BPS", 10.0),
             evaluation_interval_seconds=_float("EVALUATION_INTERVAL_SECONDS", 2.0),
             feature_persist_seconds=_int("FEATURE_PERSIST_SECONDS", 10),

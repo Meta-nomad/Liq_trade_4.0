@@ -861,6 +861,10 @@ class StrategyRouter:
         regime_elapsed = current_time - self._candidate_since
         stable = bool(
             raw.name != "WARMUP"
+            # Readiness is evaluated over the active, eligible pool passed by
+            # the service.  A few symbols with delayed/partial history must
+            # not freeze trading for all symbols that are already live.
+            and ready_count >= 10
             and ready_ratio >= self.settings.min_ready_ratio
             and warmup_elapsed >= self.settings.startup_warmup_seconds
             and regime_elapsed >= self.settings.regime_confirm_seconds
