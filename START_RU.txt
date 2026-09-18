@@ -1,4 +1,4 @@
-LIQUIDATION LAB v0.4.5 — PAPER ONLY
+LIQUIDATION LAB v0.4.6 — PAPER ONLY
 
 Что включено:
 - MEXC — цены, стакан и виртуальное исполнение;
@@ -16,7 +16,7 @@ LIQUIDATION LAB v0.4.5 — PAPER ONLY
 4. Variables не нужны; `DB_PATH=/data/paper_v040.db` задан в Dockerfile.
 
 Проверка старта:
-- `SERVICE BOOT version=0.4.5` — реально запущена новая версия;
+- `SERVICE BOOT version=0.4.6` — реально запущена новая версия;
 - `STORAGE READY path=/data/paper_v040.db` — журнал постоянный;
 - `STORAGE NONPERSISTENT FALLBACK` — volume недоступен, paper продолжает работать,
   но журнал будет временным;

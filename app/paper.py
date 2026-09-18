@@ -181,7 +181,11 @@ class PaperBroker:
         return asset
 
     def open_from_signal(self, account: AccountState, signal: Signal, now: float) -> Position | None:
-        if self.settings.high_leverage_lab and signal.setup not in {"LIQUIDATION_EXHAUSTION", "SYSTEMATIC_BREAKOUT_4H"}:
+        if self.settings.high_leverage_lab and signal.setup not in {
+            "LIQUIDATION_EXHAUSTION",
+            "MEXC_FLOW_EXHAUSTION",
+            "SYSTEMATIC_BREAKOUT_4H",
+        }:
             return None
         if not self.can_open(account, signal, now):
             return None

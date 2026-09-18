@@ -77,7 +77,7 @@ class PaperTradingService:
             len(self.settings.symbols),
             self.settings.paper_balance,
         )
-        LOGGER.info("RELEASE v0.4.5-20260917 accounts=%s execution=PAPER_ONLY venues=MEXC_EXECUTION,BYBIT_LIQUIDATION,BINANCE_CONFIRMATION liquidation_regime_aligned=true",
+        LOGGER.info("RELEASE v0.4.6-20260918 accounts=%s execution=PAPER_ONLY venues=MEXC_EXECUTION,BYBIT_LIQUIDATION,BINANCE_CONFIRMATION liquidation_regime_aligned=true flow_proxy_executable=true",
                     ",".join(self.broker.accounts))
 
     async def _refresh_universe(self) -> None:
