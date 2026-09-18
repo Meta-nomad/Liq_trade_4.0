@@ -25,6 +25,11 @@ class Tests(unittest.TestCase):
   s,m,b=self.setup_broker(True);opened=b.handle_signal(self.sig(),1000)
   self.assertEqual([p.leverage for p in opened],[20,50])
   self.assertTrue(all(p.initial_risk_usdt<=2.5 for p in opened))
+ def test_mexc_flow_exhaustion_is_executable_in_high_leverage_lab(self):
+  s,m,b=self.setup_broker(True)
+  signal=replace(self.sig(),setup='MEXC_FLOW_EXHAUSTION')
+  opened=b.handle_signal(signal,1000)
+  self.assertEqual([p.leverage for p in opened],[20,50])
  def test_missing_metadata_blocks_all(self):
   s,m,b=self.setup_broker(True);m.symbol('BTC_USDT').contract_metadata_ready=False
   self.assertEqual(b.handle_signal(self.sig(),1000),[])
